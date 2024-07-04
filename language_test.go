@@ -4,6 +4,7 @@
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
@@ -302,18 +303,20 @@ func TestCompletionList(t *testing.T) {
 				Label:            "Detail",
 				Preselect:        true,
 				SortText:         "00000",
-				TextEdit: &TextEdit{
-					Range: Range{
-						Start: Position{
-							Line:      255,
-							Character: 4,
+				TextEdit: &TextEditOrInsertReplaceEdit{
+					TextEdit: &TextEdit{
+						Range: Range{
+							Start: Position{
+								Line:      255,
+								Character: 4,
+							},
+							End: Position{
+								Line:      255,
+								Character: 10,
+							},
 						},
-						End: Position{
-							Line:      255,
-							Character: 10,
-						},
+						NewText: "Detail: ${1:},",
 					},
-					NewText: "Detail: ${1:},",
 				},
 			},
 		},
@@ -573,11 +576,132 @@ func TestCompletionItem(t *testing.T) {
 	t.Parallel()
 
 	const (
-		want        = `{"additionalTextEdits":[{"range":{"start":{"line":255,"character":4},"end":{"line":255,"character":10}},"newText":"Detail: ${1:},"}],"command":{"title":"exec echo","command":"echo","arguments":["hello"]},"commitCharacters":["a"],"tags":[1],"data":"testData","deprecated":true,"detail":"string","documentation":"Detail a human-readable string with additional information about this item, like type or symbol information.","filterText":"Detail","insertText":"testInsert","insertTextFormat":2,"insertTextMode":1,"kind":5,"label":"Detail","preselect":true,"sortText":"00000","textEdit":{"range":{"start":{"line":255,"character":4},"end":{"line":255,"character":10}},"newText":"Detail: ${1:},"}}`
-		wantNilAll  = `{"label":"Detail"}`
+		wantTextEdit = `{
+  "additionalTextEdits": [
+    {
+      "range": {
+        "start": {
+          "line": 255,
+          "character": 4
+        },
+        "end": {
+          "line": 255,
+          "character": 10
+        }
+      },
+      "newText": "Detail: ${1:},"
+    }
+  ],
+  "command": {
+    "title": "exec echo",
+    "command": "echo",
+    "arguments": [
+      "hello"
+    ]
+  },
+  "commitCharacters": [
+    "a"
+  ],
+  "tags": [
+    1
+  ],
+  "data": "testData",
+  "deprecated": true,
+  "detail": "string",
+  "documentation": "Detail a human-readable string with additional information about this item, like type or symbol information.",
+  "filterText": "Detail",
+  "insertText": "testInsert",
+  "insertTextFormat": 2,
+  "insertTextMode": 1,
+  "kind": 5,
+  "label": "Detail",
+  "preselect": true,
+  "sortText": "00000",
+  "textEdit": {
+    "range": {
+      "start": {
+        "line": 255,
+        "character": 4
+      },
+      "end": {
+        "line": 255,
+        "character": 10
+      }
+    },
+    "newText": "Detail: ${1:},"
+  }
+}`
+		wantInsertReplaceEdit = `{
+  "additionalTextEdits": [
+    {
+      "range": {
+        "start": {
+          "line": 255,
+          "character": 4
+        },
+        "end": {
+          "line": 255,
+          "character": 10
+        }
+      },
+      "newText": "Detail: ${1:},"
+    }
+  ],
+  "command": {
+    "title": "exec echo",
+    "command": "echo",
+    "arguments": [
+      "hello"
+    ]
+  },
+  "commitCharacters": [
+    "a"
+  ],
+  "tags": [
+    1
+  ],
+  "data": "testData",
+  "deprecated": true,
+  "detail": "string",
+  "documentation": "Detail a human-readable string with additional information about this item, like type or symbol information.",
+  "filterText": "Detail",
+  "insertText": "testInsert",
+  "insertTextFormat": 2,
+  "insertTextMode": 1,
+  "kind": 5,
+  "label": "Detail",
+  "preselect": true,
+  "sortText": "00000",
+  "textEdit": {
+    "newText": "Detail: ${1:},",
+    "insert": {
+      "start": {
+        "line": 105,
+        "character": 65
+      },
+      "end": {
+        "line": 105,
+        "character": 72
+      }
+    },
+    "replace": {
+      "start": {
+        "line": 105,
+        "character": 65
+      },
+      "end": {
+        "line": 105,
+        "character": 76
+      }
+    }
+  }
+}`
+		wantNilAll = `{
+  "label": "Detail"
+}`
 		wantInvalid = `{"items":[]}`
 	)
-	wantType := CompletionItem{
+	wantTypeTextEdit := CompletionItem{
 		AdditionalTextEdits: []TextEdit{
 			{
 				Range: Range{
@@ -614,18 +738,83 @@ func TestCompletionItem(t *testing.T) {
 		Label:            "Detail",
 		Preselect:        true,
 		SortText:         "00000",
-		TextEdit: &TextEdit{
-			Range: Range{
-				Start: Position{
-					Line:      255,
-					Character: 4,
+		TextEdit: &TextEditOrInsertReplaceEdit{
+			TextEdit: &TextEdit{
+				Range: Range{
+					Start: Position{
+						Line:      255,
+						Character: 4,
+					},
+					End: Position{
+						Line:      255,
+						Character: 10,
+					},
 				},
-				End: Position{
-					Line:      255,
-					Character: 10,
+				NewText: "Detail: ${1:},",
+			},
+		},
+	}
+	wantTypeInsertReplaceEdit := CompletionItem{
+		AdditionalTextEdits: []TextEdit{
+			{
+				Range: Range{
+					Start: Position{
+						Line:      255,
+						Character: 4,
+					},
+					End: Position{
+						Line:      255,
+						Character: 10,
+					},
+				},
+				NewText: "Detail: ${1:},",
+			},
+		},
+		Command: &Command{
+			Title:     "exec echo",
+			Command:   "echo",
+			Arguments: []interface{}{"hello"},
+		},
+		CommitCharacters: []string{"a"},
+		Tags: []CompletionItemTag{
+			CompletionItemTagDeprecated,
+		},
+		Data:             "testData",
+		Deprecated:       true,
+		Detail:           "string",
+		Documentation:    "Detail a human-readable string with additional information about this item, like type or symbol information.",
+		FilterText:       "Detail",
+		InsertText:       "testInsert",
+		InsertTextFormat: InsertTextFormatSnippet,
+		InsertTextMode:   InsertTextModeAsIs,
+		Kind:             CompletionItemKindField,
+		Label:            "Detail",
+		Preselect:        true,
+		SortText:         "00000",
+		TextEdit: &TextEditOrInsertReplaceEdit{
+			InsertReplaceEdit: &InsertReplaceEdit{
+				NewText: "Detail: ${1:},",
+				Insert: Range{
+					Start: Position{
+						Line:      105,
+						Character: 65,
+					},
+					End: Position{
+						Line:      105,
+						Character: 72,
+					},
+				},
+				Replace: Range{
+					Start: Position{
+						Line:      105,
+						Character: 65,
+					},
+					End: Position{
+						Line:      105,
+						Character: 76,
+					},
 				},
 			},
-			NewText: "Detail: ${1:},",
 		},
 	}
 	wantTypeNilAll := CompletionItem{
@@ -641,9 +830,16 @@ func TestCompletionItem(t *testing.T) {
 			wantErr        bool
 		}{
 			{
-				name:           "Valid",
-				field:          wantType,
-				want:           want,
+				name:           "ValidTextEdit",
+				field:          wantTypeTextEdit,
+				want:           wantTextEdit,
+				wantMarshalErr: false,
+				wantErr:        false,
+			},
+			{
+				name:           "ValidInsertReplaceEdit",
+				field:          wantTypeInsertReplaceEdit,
+				want:           wantInsertReplaceEdit,
 				wantMarshalErr: false,
 				wantErr:        false,
 			},
@@ -656,7 +852,7 @@ func TestCompletionItem(t *testing.T) {
 			},
 			{
 				name:           "Invalid",
-				field:          wantType,
+				field:          wantTypeTextEdit,
 				want:           wantInvalid,
 				wantMarshalErr: false,
 				wantErr:        true,
@@ -667,10 +863,14 @@ func TestCompletionItem(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := json.Marshal(&tt.field)
+				b := new(bytes.Buffer)
+				enc := json.NewEncoder(b)
+				enc.SetIndent("", "  ")
+				err := enc.Encode(&tt.field)
 				if (err != nil) != tt.wantMarshalErr {
 					t.Fatal(err)
 				}
+				got := strings.TrimSpace(b.String())
 
 				if diff := cmp.Diff(tt.want, string(got)); (diff != "") != tt.wantErr {
 					t.Errorf("%s: wantErr: %t\n(-want +got)\n%s", tt.name, tt.wantErr, diff)
@@ -688,9 +888,16 @@ func TestCompletionItem(t *testing.T) {
 			wantErr          bool
 		}{
 			{
-				name:             "Valid",
-				field:            want,
-				want:             wantType,
+				name:             "ValidTextEdit",
+				field:            wantTextEdit,
+				want:             wantTypeTextEdit,
+				wantUnmarshalErr: false,
+				wantErr:          false,
+			},
+			{
+				name:             "ValidInsertReplaceEdit",
+				field:            wantInsertReplaceEdit,
+				want:             wantTypeInsertReplaceEdit,
 				wantUnmarshalErr: false,
 				wantErr:          false,
 			},
@@ -704,7 +911,7 @@ func TestCompletionItem(t *testing.T) {
 			{
 				name:             "Invalid",
 				field:            wantInvalid,
-				want:             wantType,
+				want:             wantTypeTextEdit,
 				wantUnmarshalErr: false,
 				wantErr:          true,
 			},

@@ -5,6 +5,8 @@ package protocol
 
 import (
 	"strconv"
+
+	"github.com/segmentio/encoding/json"
 )
 
 // CompletionParams params of Completion request.
@@ -257,7 +259,52 @@ type CompletionItem struct {
 	// contained and starting at the same position.
 	//
 	// @since 3.16.0 additional type "InsertReplaceEdit".
-	TextEdit *TextEdit `json:"textEdit,omitempty"` // *TextEdit | *InsertReplaceEdit
+	TextEdit *TextEditOrInsertReplaceEdit `json:"textEdit,omitempty"` // *TextEdit | *InsertReplaceEdit
+}
+
+type TextEditOrInsertReplaceEdit struct {
+	TextEdit          *TextEdit
+	InsertReplaceEdit *InsertReplaceEdit
+}
+
+func (t *TextEditOrInsertReplaceEdit) MarshalJSON() ([]byte, error) {
+	if t.TextEdit != nil {
+		return json.Marshal(t.TextEdit)
+	}
+	return json.Marshal(t.InsertReplaceEdit)
+}
+
+type textEditAndInsertReplaceEdit struct {
+	// NewText is in both types.
+	NewText string `json:"newText"`
+
+	// Range is only present in TextEdit.
+	Range *Range `json:"range"`
+
+	// Insert is only present in InsertReplaceEdit.
+	Insert Range `json:"insert"`
+	// Replace is only present in InsertReplaceEdit.
+	Replace Range `json:"replace"`
+}
+
+func (t *TextEditOrInsertReplaceEdit) UnmarshalJSON(data []byte) error {
+	var teaire textEditAndInsertReplaceEdit
+	if err := json.Unmarshal(data, &teaire); err != nil {
+		return err
+	}
+	if teaire.Range != nil {
+		t.TextEdit = &TextEdit{
+			NewText: teaire.NewText,
+			Range:   *teaire.Range,
+		}
+		return nil
+	}
+	t.InsertReplaceEdit = &InsertReplaceEdit{
+		NewText: teaire.NewText,
+		Insert:  teaire.Insert,
+		Replace: teaire.Replace,
+	}
+	return nil
 }
 
 // CompletionItemKind is the completion item kind values the client supports. When this
@@ -324,6 +371,7 @@ const (
 )
 
 // String implements fmt.Stringer.
+//
 //nolint:cyclop
 func (k CompletionItemKind) String() string {
 	switch k {
@@ -730,6 +778,7 @@ const (
 )
 
 // String implements fmt.Stringer.
+//
 //nolint:cyclop
 func (k SymbolKind) String() string {
 	switch k {

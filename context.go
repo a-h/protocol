@@ -33,3 +33,12 @@ func LoggerFromContext(ctx context.Context) *zap.Logger {
 func WithClient(ctx context.Context, client Client) context.Context {
 	return context.WithValue(ctx, ctxClient, client)
 }
+
+// ClientFromContext extracts Client from context.
+func ClientFromContext(ctx context.Context) Client {
+	client, ok := ctx.Value(ctxClient).(Client)
+	if !ok {
+		return nil
+	}
+	return client
+}
