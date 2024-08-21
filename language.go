@@ -930,6 +930,35 @@ type SymbolInformation struct {
 	ContainerName string `json:"containerName,omitempty"`
 }
 
+type SymbolInformationOrDocumentSymbol struct {
+	SymbolInformation *SymbolInformation
+	DocumentSymbol    *DocumentSymbol
+}
+
+func (s *SymbolInformationOrDocumentSymbol) MarshalJSON() ([]byte, error) {
+	if s.SymbolInformation != nil {
+		return json.Marshal(s.SymbolInformation)
+	}
+	return json.Marshal(s.DocumentSymbol)
+}
+
+func (s *SymbolInformationOrDocumentSymbol) UnmarshalJSON(data []byte) error {
+	s = &SymbolInformationOrDocumentSymbol{}
+	if err := json.Unmarshal(data, s.SymbolInformation); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, s.DocumentSymbol); err != nil {
+		return err
+	}
+	// Only SymbolInformation has a location URI.
+	if s.SymbolInformation.Location.URI == "" {
+		s.SymbolInformation = nil
+	} else {
+		s.DocumentSymbol = nil
+	}
+	return nil
+}
+
 // CodeActionParams params for the CodeActionRequest.
 type CodeActionParams struct {
 	WorkDoneProgressParams
